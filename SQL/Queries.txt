@@ -1,0 +1,123 @@
+-- Queries to implement features on Single Book Page --
+
+# Fetch information on books and reviews. This data will be be used to populate the book page with book metadata as well as the reviews the book has recieved. 
+# Reviews for the book will be displayed below the book information. These will be sortable by number of “likes” the review got and the date.
+SELECT b.*, r.*
+FROM Books b JOIN REVIEWS r ON b.book_id = r.book_id;
+
+# Retrieves aggregated data for the specified book id. This will be used to plot of the number of reviews/average rating the book has gotten in each year.
+SELECT r.year, AVG(r.rating), COUNT(*)
+FROM Books JOIN REVIEWS r ON r.book_id = ${book_id}
+GROUP BY r.year;
+
+# When a genre is clicked from a book page, it will direct to that genre's page. We will display a table fo the books in the genre, sortable by a clickable attribute in the table and limited to display some number of records per page (ie 10, 25, 50). 
+SELECT g.genre_id, b.*
+FROM Genres g NATURAL JOIN Book_Genres bg ON genre_id
+              JOIN Books b ON b.book_id = bg.book_id
+WHERE genre = ${genre_name}
+ORDER BY ${attribute} DESC LIMIT ${pageSize} OFFSET ${offset};
+
+# If a book is part of a series, these will be displayed as part of the book page. clicking the series title will pop out a model containing the other books in the series, each of which is clickable and navigates to that book’s page.
+SELECT b.book_id, b.title, b.image_url, bk.book_id, bk.title, bk.image_url
+FROM (SELECT book_id
+      FROM Books
+      WHERE book_id = ${book_id}) b
+JOIN Book_Series bs ON b.series = bs.series_id
+JOIN Books bk ON bs.book_id = bk.book_id;
+
+
+# Retrieval of additional information needed to populate the books page. Specifically, get the author information  
+SELECT a.name, a.role
+FROM Books b
+	INNER JOIN WrittenBy w ON w.book_id = b.book_id
+	INNER JOIN Authors a ON w.author_id = a.author_id
+WHERE b.book_id = '${selected_book_id}'	
+
+# Retrieval of additional information needed to populate the books page. Specifically, get the genres associated with the book
+SELECT g.genre 
+FROM Books b
+	INNER JOIN Book_Genres bg ON bg.book_id = b.book_id
+	INNER JOIN Geners g ON g.genre_id = bg.genre_id
+WHERE b.book_id = '${selected_book_id}'
+
+
+# Get the title and image URL of books that are similar to the current book. 
+SELECT b.book_id, b.title, s.similar_book_id, b2.Title, b2.image_url
+FROM Books b
+	INNER JOIN similar_books s ON s.book_id = b.'${selected_book_id}'
+	INNNER JOIN Books b2 ON s.similar_books_id = s.book_id
+
+
+-- Queries to implement features on Home Page --
+
+# Calculate the average ratings on books that were reviewed in the current month and return the top 10 Books(titles/URLs). This is our 'Books of the month' feature.
+SELECT b.title, b.image_url, 
+FROM Reviews r 
+	JOIN Book b ON b.book_id = r.book_id 
+WHERE 
+	b.id IN ( SELECT book_id
+                FROM (SELECT r.book_id , AVG(rating)
+                    FROM Reviews r
+                    WHERE r.month_added = month(getdate())
+                    GROUP BY r.book_id
+                    ORDER BY AVG(rating) DESC
+                    LIMIT 10 )
+
+# a randomized algorithm to send the user to a book page. 'Surprise Me' feature. 
+STILL TODO
+
+# Find two random genres and the select the top 2 rated books within those genres and return these as recommended books for the the user. 
+SELECT g.genre, b.title,b.image_url
+FROM Genre g
+    NATURAL JOIN Book_Genre bg
+	JOIN
+		(SELECT bg.genre_id AS genre_id
+			FROM User u
+				JOIN book_genres bg ON u.liked_books = bg.book_id
+			WHERE user_id = '${user_id}'
+			ORDER BY RAND()
+			LIMIT 1) g_user
+        ON bg.genre_id = g_user.genre_id
+    JOIN books b ON bg.book_id = b.book_id
+ORDER BY b.average_rating
+LIMIT 2
+UNION 
+SELECT g.genre, b.title,b.image_url
+FROM Genre g
+    NATURAL JOIN Book_Genre bg
+	JOIN
+		(SELECT bg.genre_id AS genre_id
+			FROM User u
+				JOIN book_genres bg ON u.liked_books = bg.book_id
+			WHERE user_id = '${user_id}'
+			ORDER BY RAND()
+			LIMIT 1) g_user
+        ON bg.genre_id = g_user.genre_id
+    JOIN books b ON bg.book_id = b.book_id
+ORDER BY b.average_rating
+LIMIT 2;
+
+
+-- Queries to implement features on Author Page --
+
+-- 1. return author name ordered by selected attr
+
+SELECT name FROM Authors
+ORDER BY '${attribute}';
+
+
+-- 2. return details of selected author
+
+SELECT * FROM Authors
+WHERE Authors.id = '${author_id}';
+
+-- 4: User's liked books
+
+SELECT b.title
+FROM User u
+	JOIN books b ON u.liked_books = b.book_id
+WHERE user_id = '${user_id}'
+
+
+
+	
